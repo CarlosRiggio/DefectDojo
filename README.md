@@ -19,7 +19,8 @@ deployment/     Part 1 — stand up DefectDojo itself (Docker Compose) and prove
 sample-app/     Part 2 — a minimal Flask app plus a local pipeline (Semgrep SAST + OWASP ZAP DAST)
                 that scans it and reports the results into the DefectDojo from Part 1, automatically.
 
-docs/           What DefectDojo actually is: data model, usage, integrations, value.
+docs/           What DefectDojo actually is: data model, usage, integrations, value - and how this
+                same setup extends to tracking multiple projects at once.
 ```
 
 ### Part 1 — [`deployment/`](deployment/)
@@ -44,6 +45,11 @@ real findings (4 Semgrep, 9 ZAP) now sitting in DefectDojo.
 The deep-dive: what DefectDojo is, its Product → Engagement → Test → Finding data model, how scan
 import/reimport/deduplication actually work, its integration ecosystem, Community vs. Pro, and why any of
 this is useful to an organization — each claim cross-linked to where it's demonstrated in this repo.
+
+See also [`docs/MULTI-PROJECT-TRACKING.md`](docs/MULTI-PROJECT-TRACKING.md) for how this same setup
+extends beyond one sample app: onboarding multiple projects onto one DefectDojo instance, what that
+buys once more than one project is reporting in, and the constraints worth knowing before relying on it
+for more than a POC.
 
 ---
 

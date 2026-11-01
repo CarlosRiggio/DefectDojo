@@ -120,3 +120,7 @@ enhancement on the same core, not a fork.
 | Reimport / deduplication behavior | [`deployment/README.md`](../deployment/README.md) step 6 |
 | Real SAST + DAST tools reporting automatically | [`sample-app/`](../sample-app/) |
 | One engagement per pipeline run, CI-shaped automation | [`sample-app/scan-and-report.sh`](../sample-app/scan-and-report.sh) |
+
+One Product covers one project. See [`MULTI-PROJECT-TRACKING.md`](MULTI-PROJECT-TRACKING.md) for how the
+same instance extends to tracking vulnerabilities across several projects at once, and what that
+actually requires.
