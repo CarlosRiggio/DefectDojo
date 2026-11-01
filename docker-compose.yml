@@ -1,0 +1,127 @@
+# Lightweight DefectDojo local POC deployment.
+#
+# Unlike the upstream django-DefectDojo repo's docker-compose.yml, this file
+# pulls pre-built images only (no `build:` context) so it works without
+# checking out the full application source. Adapted from:
+# https://github.com/DefectDojo/django-DefectDojo/blob/master/docker-compose.yml
+#
+# Images are pulled through registry.defectdojo.com (run by DefectDojo, Inc.) so pulls
+# don't count against Docker Hub rate limits. Each pull is logged (time, image, client, IP;
+# the IP is deleted within 3 days). Prefer Docker Hub directly? Set DD_IMAGE_REGISTRY=docker.io.
+# Details: https://defectdojo.com/privacy-policy (section 1.4)
+---
+services:
+  nginx:
+    image: "${DD_IMAGE_REGISTRY:-registry.defectdojo.com}/defectdojo/defectdojo-nginx:${NGINX_VERSION:-latest}"
+    depends_on:
+      uwsgi:
+        condition: service_started
+    environment:
+      NGINX_METRICS_ENABLED: "${NGINX_METRICS_ENABLED:-false}"
+      DD_UWSGI_HOST: "${DD_UWSGI_HOST:-uwsgi}"
+      DD_UWSGI_PORT: "${DD_UWSGI_PORT:-3031}"
+    volumes:
+      - defectdojo_media:/usr/share/nginx/html/media
+    ports:
+      - target: 8080
+        published: ${DD_PORT:-8080}
+        protocol: tcp
+        mode: host
+
+  uwsgi:
+    image: "${DD_IMAGE_REGISTRY:-registry.defectdojo.com}/defectdojo/defectdojo-django:${DJANGO_VERSION:-latest}"
+    depends_on:
+      initializer:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_started
+      valkey:
+        condition: service_started
+    entrypoint: ['/wait-for-it.sh', '${DD_DATABASE_HOST:-postgres}:${DD_DATABASE_PORT:-5432}', '-t', '30', '--', '/entrypoint-uwsgi.sh']
+    environment:
+      DD_DEBUG: 'False'
+      DD_DJANGO_METRICS_ENABLED: "${DD_DJANGO_METRICS_ENABLED:-False}"
+      DD_ALLOWED_HOSTS: "${DD_ALLOWED_HOSTS:-*}"
+      DD_DATABASE_URL: ${DD_DATABASE_URL}
+      DD_CELERY_BROKER_URL: ${DD_CELERY_BROKER_URL:-redis://valkey:6379/0}
+      DD_CACHE_URL: ${DD_CACHE_URL:-redis://valkey:6379/1}
+      DD_SECRET_KEY: "${DD_SECRET_KEY}"
+      DD_CREDENTIAL_AES_256_KEY: "${DD_CREDENTIAL_AES_256_KEY}"
+      DD_DATABASE_READINESS_TIMEOUT: "${DD_DATABASE_READINESS_TIMEOUT:-30}"
+    volumes:
+      - "defectdojo_media:${DD_MEDIA_ROOT:-/app/media}"
+
+  celerybeat:
+    image: "${DD_IMAGE_REGISTRY:-registry.defectdojo.com}/defectdojo/defectdojo-django:${DJANGO_VERSION:-latest}"
+    depends_on:
+      initializer:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_started
+      valkey:
+        condition: service_started
+    entrypoint: ['/wait-for-it.sh', '${DD_DATABASE_HOST:-postgres}:${DD_DATABASE_PORT:-5432}', '-t', '30', '--', '/entrypoint-celery-beat.sh']
+    environment:
+      DD_DATABASE_URL: ${DD_DATABASE_URL}
+      DD_CELERY_BROKER_URL: ${DD_CELERY_BROKER_URL:-redis://valkey:6379/0}
+      DD_CACHE_URL: ${DD_CACHE_URL:-redis://valkey:6379/1}
+      DD_SECRET_KEY: "${DD_SECRET_KEY}"
+      DD_CREDENTIAL_AES_256_KEY: "${DD_CREDENTIAL_AES_256_KEY}"
+      DD_DATABASE_READINESS_TIMEOUT: "${DD_DATABASE_READINESS_TIMEOUT:-30}"
+
+  celeryworker:
+    image: "${DD_IMAGE_REGISTRY:-registry.defectdojo.com}/defectdojo/defectdojo-django:${DJANGO_VERSION:-latest}"
+    depends_on:
+      initializer:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_started
+      valkey:
+        condition: service_started
+    entrypoint: ['/wait-for-it.sh', '${DD_DATABASE_HOST:-postgres}:${DD_DATABASE_PORT:-5432}', '-t', '30', '--', '/entrypoint-celery-worker.sh']
+    environment:
+      DD_DATABASE_URL: ${DD_DATABASE_URL}
+      DD_CELERY_BROKER_URL: ${DD_CELERY_BROKER_URL:-redis://valkey:6379/0}
+      DD_CACHE_URL: ${DD_CACHE_URL:-redis://valkey:6379/1}
+      DD_SECRET_KEY: "${DD_SECRET_KEY}"
+      DD_CREDENTIAL_AES_256_KEY: "${DD_CREDENTIAL_AES_256_KEY}"
+      DD_DATABASE_READINESS_TIMEOUT: "${DD_DATABASE_READINESS_TIMEOUT:-30}"
+    volumes:
+      - "defectdojo_media:${DD_MEDIA_ROOT:-/app/media}"
+
+  initializer:
+    image: "${DD_IMAGE_REGISTRY:-registry.defectdojo.com}/defectdojo/defectdojo-django:${DJANGO_VERSION:-latest}"
+    depends_on:
+      postgres:
+        condition: service_started
+    entrypoint: ['/wait-for-it.sh', '${DD_DATABASE_HOST:-postgres}:${DD_DATABASE_PORT:-5432}', '--', '/entrypoint-initializer.sh']
+    environment:
+      DD_DATABASE_URL: ${DD_DATABASE_URL}
+      DD_ADMIN_USER: "${DD_ADMIN_USER:-admin}"
+      DD_ADMIN_MAIL: "${DD_ADMIN_MAIL:-admin@defectdojo.local}"
+      DD_ADMIN_FIRST_NAME: "${DD_ADMIN_FIRST_NAME:-Admin}"
+      DD_ADMIN_LAST_NAME: "${DD_ADMIN_LAST_NAME:-User}"
+      DD_INITIALIZE: "${DD_INITIALIZE:-true}"
+      DD_SECRET_KEY: "${DD_SECRET_KEY}"
+      DD_CREDENTIAL_AES_256_KEY: "${DD_CREDENTIAL_AES_256_KEY}"
+      DD_DATABASE_READINESS_TIMEOUT: "${DD_DATABASE_READINESS_TIMEOUT:-30}"
+
+  postgres:
+    image: postgres:18.6-alpine
+    environment:
+      PGDATA: /var/lib/postgresql/data
+      POSTGRES_DB: ${DD_DATABASE_NAME:-defectdojo}
+      POSTGRES_USER: ${DD_DATABASE_USER:-defectdojo}
+      POSTGRES_PASSWORD: ${DD_DATABASE_PASSWORD}
+    volumes:
+      - defectdojo_postgres:/var/lib/postgresql/data
+
+  valkey:
+    image: valkey/valkey:9.1.2-alpine
+    volumes:
+      - defectdojo_redis:/data
+
+volumes:
+  defectdojo_postgres: {}
+  defectdojo_media: {}
+  defectdojo_redis: {}

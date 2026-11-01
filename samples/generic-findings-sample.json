@@ -1,0 +1,51 @@
+{
+  "name": "DefectDojo POC Sample Findings",
+  "type": "POC Manual Review",
+  "description": "Hand-authored sample findings used to exercise the DefectDojo Generic Findings Import API during the local POC deployment.",
+  "findings": [
+    {
+      "title": "Hardcoded database credentials in configuration file",
+      "severity": "High",
+      "description": "The application configuration file stores the database username and password in plaintext, committed to version control.",
+      "mitigation": "Move credentials to environment variables or a secrets manager; rotate the exposed credentials.",
+      "impact": "An attacker with read access to the repository or filesystem gains direct database access.",
+      "references": "https://cwe.mitre.org/data/definitions/798.html",
+      "cwe": 798,
+      "file_path": "config/settings.py",
+      "line": 42,
+      "date": "2026-11-01",
+      "active": true,
+      "verified": true,
+      "static_finding": true,
+      "tags": ["poc", "secrets"]
+    },
+    {
+      "title": "Outdated dependency with known CVE",
+      "severity": "Medium",
+      "description": "A third-party library pinned in the dependency manifest has a publicly disclosed vulnerability with an available patched version.",
+      "mitigation": "Upgrade the dependency to the patched release and re-run the scan to confirm resolution.",
+      "impact": "Depending on the CVE, could allow denial of service or remote code execution under specific conditions.",
+      "references": "https://nvd.nist.gov/",
+      "cwe": 1104,
+      "component_name": "example-lib",
+      "component_version": "2.3.1",
+      "date": "2026-11-01",
+      "active": true,
+      "verified": true,
+      "tags": ["poc", "dependency"]
+    },
+    {
+      "title": "Missing security headers on HTTP responses",
+      "severity": "Info",
+      "description": "Responses from the web server do not set recommended security headers such as Content-Security-Policy and X-Content-Type-Options.",
+      "mitigation": "Configure the reverse proxy/web server to add the recommended security headers to all responses.",
+      "impact": "Low on its own, but increases exposure to clickjacking and content-sniffing style attacks in combination with other issues.",
+      "references": "https://owasp.org/www-project-secure-headers/",
+      "file_path": "nginx/nginx.conf",
+      "date": "2026-11-01",
+      "active": true,
+      "verified": true,
+      "tags": ["poc", "hardening"]
+    }
+  ]
+}
