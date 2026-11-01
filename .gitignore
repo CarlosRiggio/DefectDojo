@@ -1,2 +1,10 @@
 .env
 *.env.local
+
+# Generated scan reports/artifacts from sample-app/scan-and-report.sh
+sample-app/semgrep-report.json
+sample-app/zap-report.xml
+sample-app/zap.yaml
+
+# Unrelated local tooling artifact
+ruvector.db
