@@ -11,6 +11,11 @@ One shared DefectDojo instance, one **Product** per project/repository, each pro
 (existing or new) reporting into it through the exact `import-scan` / `reimport-scan` pattern already
 proven end-to-end in [`sample-app/scan-and-report.sh`](../sample-app/scan-and-report.sh).
 
+This is already visible with just the two products this repo created — `asset` here is this DefectDojo
+build's UI label for what the API still calls a Product:
+
+![Products list showing both projects from this repo on one DefectDojo instance](images/03-products-list.png)
+
 ## Proposed model
 
 - **Product Type** = a team or area; **Product** = one project/repo within it. A product type groups
@@ -45,6 +50,12 @@ proven end-to-end in [`sample-app/scan-and-report.sh`](../sample-app/scan-and-re
 | Re-running a scan in CI either floods the backlog with duplicates or nobody re-imports at all | Reimport/deduplication (already demonstrated in `deployment/README.md`) keeps recurring CI scans clean at any number of projects |
 | No consistent audit trail of what was found/accepted/fixed and when | Every finding, risk acceptance, and status change is timestamped and attributable, per project and rolled up |
 | Onboarding a new project's security tracking means inventing a process each time | The same scan → report → import shape, already built once in `sample-app/`, is just reused |
+
+The built-in metrics dashboard already aggregates across every product on the instance — "Top 2 Products By
+Bug Severity" below is exactly this, generated automatically from the two products this repo created,
+with zero extra configuration:
+
+![Metrics dashboard aggregating findings across both products by severity](images/09-metrics-dashboard.png)
 
 ## Honest constraints to carry into any real rollout
 

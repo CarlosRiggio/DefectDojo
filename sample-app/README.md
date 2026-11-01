@@ -117,6 +117,17 @@ are exactly what [`app.py`](app.py)'s `/greet` route was built to trigger: it re
 straight into an HTML response without escaping it. It's left in deliberately — the whole point of this
 app is to give both scanners something real to find, not to be production code.
 
+The engagement as it actually looks in DefectDojo — two Tests, one per tool, 4 and 9 findings respectively:
+
+![Engagement showing the Semgrep and ZAP tests side by side](../docs/images/05-engagement-sample-app-scan.png)
+
+Two finding detail pages, deliberately shown side by side — same severity scale, two different kinds of
+location data depending on where the finding actually came from:
+
+![Semgrep finding detail: file + line number as the location](../docs/images/07-finding-detail-semgrep.png)
+
+![ZAP finding detail: a URL endpoint as the location](../docs/images/08-finding-detail-zap.png)
+
 ## Re-running
 
 The script is idempotent on the product (reuses `Sample Flask App` if it already exists) and creates one

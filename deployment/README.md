@@ -100,6 +100,10 @@ docker compose logs initializer | grep "Admin password:"
 
 Then open **http://localhost:8080** and log in as `admin` with that password.
 
+![DefectDojo login page](../docs/images/01-login.png)
+
+![DefectDojo dashboard after login](../docs/images/02-dashboard.png)
+
 Confirmed working in this session:
 
 ```bash
@@ -183,6 +187,13 @@ count: 3
 - Medium | Outdated Dependency With Known CVE
 - Info   | Missing Security Headers on HTTP Responses
 ```
+
+The engagement as it actually looks afterward, and one finding's full detail view (severity, SLA countdown,
+CWE, description, mitigation — the fields that came straight from `samples/generic-findings-sample.json`):
+
+![Engagement detail page showing the imported test and its findings](../docs/images/04-engagement-deployment-poc.png)
+
+![Finding detail page for the hardcoded credentials finding](../docs/images/06-finding-detail-generic.png)
 
 ### 6. Reimport to demonstrate deduplication
 
