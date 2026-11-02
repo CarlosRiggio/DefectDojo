@@ -1,12 +1,23 @@
-# EPSS + CISA KEV Triage on DefectDojo Community Edition
+[← 3. Scan pipeline](03-scan-pipeline.md) · **4. EPSS / KEV triage** · [5. Multi-project tracking →](05-multi-project-tracking.md)
+
+# 4. EPSS + CISA KEV Triage on Community Edition
 
 A scanner tells you *what* is vulnerable. It does not tell you *what to fix first*. This page covers how
 this POC adds two threat-intelligence signals, **EPSS** and **CISA KEV**, to DefectDojo **Community
 Edition** so findings can be triaged by real-world exploitation risk instead of severity alone. It also
 shows what that did to real scan results.
 
-Everything below was run against the local instance from [`../deployment/`](../deployment/). The numbers
-come from the two pipeline runs on 2026-11-02 (engagements 3 and 4 of `Sample Flask App`).
+Everything below was run against the local instance from [guide 2](02-deployment.md). The numbers come
+from the two pipeline runs on 2026-11-02 (engagements 3 and 4 of `Sample Flask App`, see
+[guide 3](03-scan-pipeline.md#sca--triage-engagements-3-and-4)).
+
+- [The three signals](#the-three-signals)
+- [What Community Edition has vs. what Pro adds](#what-community-edition-has-vs-what-pro-adds)
+- [How it's wired into the pipeline](#how-its-wired-into-the-pipeline)
+- [What it did to real scan results](#what-it-did-to-real-scan-results)
+- [In the DefectDojo UI](#in-the-defectdojo-ui)
+- [Running the enrichment on its own](#running-the-enrichment-on-its-own)
+- [Limitations](#limitations)
 
 ---
 
@@ -39,7 +50,8 @@ adds both through the REST API, without patching DefectDojo itself.
 
 ## How it's wired into the pipeline
 
-[`sample-app/scan-and-report.sh`](../sample-app/scan-and-report.sh) gained two stages:
+[`sample-app/scan-and-report.sh`](../sample-app/scan-and-report.sh) has two stages for this
+([pipeline overview](03-scan-pipeline.md#pipeline-stages)):
 
 1. **SCA with Anchore Grype.** It scans the built `sample-app:poc` container image (OS packages and Python
    deps). This matters because **EPSS and KEV only apply to findings with a CVE**. The existing Semgrep
@@ -80,7 +92,7 @@ The same app, scanned twice. The only difference is the container's base image:
 | P2 / P3 | 60 / 135 | 238 / 410 |
 | Highest EPSS among Highs | 0.63% | 99.99% |
 
-Run with `BASE_IMAGE=python:3.11.5-slim-bookworm ./scan-and-report.sh`
+Reproduce with `make scan` and `make scan-stale`.
 
 - **Run 1:** 60 High findings, and none of them is likely to be exploited. Without EPSS/KEV, those 60
   Highs look like a crisis. With it, the real answer is "patch on the normal SLA".
@@ -156,19 +168,27 @@ Useful UI URLs:
 ## Running the enrichment on its own
 
 ```bash
-cd sample-app
-set -a; source .env; set +a
-python3 enrich-epss-kev.py --dry-run            # what would change, whole instance
-python3 enrich-epss-kev.py --product-id 2       # one product
-python3 enrich-epss-kev.py --epss-threshold 0.05 --top 0   # stricter, print every row
+make enrich-dry-run                 # what would change, whole instance
+make enrich                         # apply, whole instance
+make enrich PRODUCT_ID=2            # one product
 ```
+
+Or call the script directly for every option:
+
+```bash
+set -a; source sample-app/.env; set +a
+python3 sample-app/enrich-epss-kev.py --epss-threshold 0.05 --top 0   # stricter, print every row
+```
+
+The tier logic (multi-CVE rules, thresholds, tags) is covered by unit tests, and `make test-pipeline`
+checks the tiering invariants on a live run. See [guide 6](06-testing.md).
 
 EPSS changes daily and KEV grows every week. CISA can also flip a CVE's ransomware flag from "Unknown"
 to "Known" without announcing it. Values set at import time therefore go stale, and the enrichment should
 run on a schedule, not only in CI. A daily cron entry, for example:
 
 ```cron
-30 6 * * * cd /path/to/DefectDojo/sample-app && set -a && . ./.env && set +a && python3 enrich-epss-kev.py >> /tmp/epss-kev.log 2>&1
+30 6 * * * cd /path/to/DefectDojo && make enrich >> /tmp/epss-kev.log 2>&1
 ```
 
 ## Limitations
@@ -182,3 +202,7 @@ run on a schedule, not only in CI. A daily cron entry, for example:
   fills the gap.
 - **External calls.** The script calls `cisa.gov` and `api.first.org` (public, no key). Air-gapped
   setups would need to mirror both feeds.
+
+---
+
+[← 3. Scan pipeline](03-scan-pipeline.md) · **4. EPSS / KEV triage** · [5. Multi-project tracking →](05-multi-project-tracking.md)

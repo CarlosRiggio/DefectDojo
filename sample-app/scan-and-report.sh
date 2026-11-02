@@ -18,18 +18,19 @@
 #
 # Optional: BASE_IMAGE=python:3.11.5-slim-bookworm ./scan-and-report.sh
 # builds the app on a stale base image, to demo what KEV/EPSS triage does
-# with a real backlog of hundreds of CVEs (see README).
+# with a real backlog of hundreds of CVEs (see docs/04-epss-kev-triage.md).
 
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
+cd "$SCRIPT_DIR" || exit 1
 
 if [[ ! -f .env ]]; then
-  echo "Missing sample-app/.env - copy .env.example and fill in DD_PASSWORD." >&2
+  echo "Missing sample-app/.env - run 'make up' (or copy .env.example and set DD_PASSWORD)." >&2
   exit 1
 fi
 set -a
+# shellcheck source=/dev/null
 source .env
 set +a
 

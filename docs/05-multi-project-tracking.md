@@ -1,6 +1,9 @@
-# Scaling this POC: tracking vulnerabilities across multiple projects
+[← 4. EPSS / KEV triage](04-epss-kev-triage.md) · **5. Multi-project tracking** · [6. Testing & automation →](06-testing.md)
 
-This repo proves the mechanics with one product (`deployment/`) and one sample pipeline (`sample-app/`).
+# 5. Multi-Project Tracking
+
+This repo proves the mechanics with one hand-built product ([guide 2](02-deployment.md)) and one sample
+pipeline ([guide 3](03-scan-pipeline.md)).
 The same mechanics scale to many projects without changing the model — only adding more Products to the
 same DefectDojo instance. This doc covers how that extension would actually work and what it buys a team
 that owns several projects.
@@ -32,8 +35,8 @@ build's UI label for what the API still calls a Product:
 2. **Point its existing scanner(s) at DefectDojo.** No new tooling is required if the project already
    runs something with a built-in parser (180+ supported: Trivy, Bandit, npm/pip audit, Checkmarx, Snyk,
    Nessus, etc.) — only the `import-scan` call needs adding to however that scan already runs. If it has
-   no dedicated parser, the Generic Findings Import format covers it, same as `deployment/samples/` does
-   here.
+   no dedicated parser, the Generic Findings Import format covers it, same as
+   [`deployment/samples/`](../deployment/samples/) does here.
 3. **Set an SLA configuration** if remediation deadlines should differ by project (a customer-facing
    service vs. an internal tool, for instance).
 4. **Assign authorized users** on the product so each team sees and gets notified about its own project
@@ -47,7 +50,8 @@ build's UI label for what the API still calls a Product:
 |---|---|
 | Each project's scanner has its own dashboard, severity scale, and report format | One normalized data model and severity scale across every project |
 | Tracking remediation means checking N separate tools (or a spreadsheet) | One aggregated view of open findings by severity, across all products |
-| Re-running a scan in CI either floods the backlog with duplicates or nobody re-imports at all | Reimport/deduplication (already demonstrated in `deployment/README.md`) keeps recurring CI scans clean at any number of projects |
+| Re-running a scan in CI either floods the backlog with duplicates or nobody re-imports at all | Reimport/deduplication ([demonstrated in guide 2](02-deployment.md#6-reimport-to-demonstrate-deduplication)) keeps recurring CI scans clean at any number of projects |
+| Every project's backlog is a wall of "Highs" with no way to compare urgency across them | EPSS/KEV tiers ([guide 4](04-epss-kev-triage.md)) give one fix-now queue across all products: `/finding/open?tags=priority-p0` is instance-wide |
 | No consistent audit trail of what was found/accepted/fixed and when | Every finding, risk acceptance, and status change is timestamped and attributable, per project and rolled up |
 | Onboarding a new project's security tracking means inventing a process each time | The same scan → report → import shape, already built once in `sample-app/`, is just reused |
 
@@ -57,7 +61,7 @@ with zero extra configuration:
 
 ![Metrics dashboard aggregating findings across both products by severity](images/09-metrics-dashboard.png)
 
-## Honest constraints to carry into any real rollout
+## Constraints to carry into a real rollout
 
 - **Reachability**: this POC's local script (instead of real CI/CD) only works because DefectDojo lives
   on one machine. A multi-project rollout needs DefectDojo reachable from wherever each project's actual
@@ -68,3 +72,7 @@ with zero extra configuration:
   the relevant question rather than a nice-to-have.
 - **One shared instance is now a dependency**: it becomes something to secure, back up, and keep
   available for every project relying on it, not just a disposable local POC.
+
+---
+
+[← 4. EPSS / KEV triage](04-epss-kev-triage.md) · **5. Multi-project tracking** · [6. Testing & automation →](06-testing.md)
