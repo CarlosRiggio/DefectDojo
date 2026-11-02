@@ -96,6 +96,11 @@ source. **Pro** (DefectDojo, Inc., SaaS or self-hosted, from ~$100/mo) layers on
 SAML, OIDC, LDAP, MFA), managed hosting, and additional reporting/compliance features — it's an
 enhancement on the same core, not a fork.
 
+One Pro feature this repo deliberately backfills is **EPSS / CISA KEV threat-intelligence enrichment and
+risk-based priority**. Community Edition already has the EPSS/KEV fields, list columns and filters, but
+nothing keeps them populated or ranks findings by them. [`EPSS-KEV-TRIAGE.md`](EPSS-KEV-TRIAGE.md) shows
+how a small API script covers that, and what it does to real scan results.
+
 ---
 
 ## Why this matters (the utility)
@@ -118,7 +123,8 @@ enhancement on the same core, not a fork.
 | Stand up DefectDojo itself, prove the API works | [`deployment/`](../deployment/) |
 | Product → Engagement → Test → Finding data model, by hand | [`deployment/README.md`](../deployment/README.md) walkthrough |
 | Reimport / deduplication behavior | [`deployment/README.md`](../deployment/README.md) step 6 |
-| Real SAST + DAST tools reporting automatically | [`sample-app/`](../sample-app/) |
+| Real SAST + SCA + DAST tools reporting automatically | [`sample-app/`](../sample-app/) |
+| Risk-based triage with EPSS + CISA KEV on Community Edition | [`EPSS-KEV-TRIAGE.md`](EPSS-KEV-TRIAGE.md), [`sample-app/enrich-epss-kev.py`](../sample-app/enrich-epss-kev.py) |
 | One engagement per pipeline run, CI-shaped automation | [`sample-app/scan-and-report.sh`](../sample-app/scan-and-report.sh) |
 
 One Product covers one project. See [`MULTI-PROJECT-TRACKING.md`](MULTI-PROJECT-TRACKING.md) for how the

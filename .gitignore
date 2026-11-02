@@ -5,6 +5,8 @@
 sample-app/semgrep-report.json
 sample-app/zap-report.xml
 sample-app/zap.yaml
+sample-app/grype-report.json
+__pycache__/
 
 # Unrelated local tooling artifact
 ruvector.db

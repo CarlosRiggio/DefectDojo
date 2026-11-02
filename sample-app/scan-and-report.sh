@@ -1,15 +1,24 @@
 #!/usr/bin/env bash
-# Local SAST + DAST pipeline for sample-app, reporting straight into the
+# Local SAST + SCA + DAST pipeline for sample-app, reporting straight into the
 # already-running local DefectDojo instance.
 #
 #   1. SAST   -> Semgrep (official Docker image) over the app source
-#   2. DAST   -> OWASP ZAP baseline scan (official Docker image) against the
+#   2. SCA    -> Anchore Grype (official Docker image) over the built app
+#                container image - OS packages + Python deps, with EPSS
+#                scores and CISA KEV matches included in its report
+#   3. DAST   -> OWASP ZAP baseline scan (official Docker image) against the
 #                app running in a container
-#   3. Report -> both results imported into DefectDojo via its REST API,
+#   4. Report -> all three results imported into DefectDojo via its REST API,
 #                under a dedicated Product and a fresh Engagement per run.
+#   5. Triage -> enrich-epss-kev.py refreshes EPSS/KEV on every CVE-bearing
+#                finding of the product and tags it priority-p0..p3.
 #
-# Requires: Docker, and sample-app/.env with DD_URL/DD_USERNAME/DD_PASSWORD
-# for a DefectDojo instance that is already up (see ../deployment).
+# Requires: Docker, python3, and sample-app/.env with DD_URL/DD_USERNAME/
+# DD_PASSWORD for a DefectDojo instance that is already up (see ../deployment).
+#
+# Optional: BASE_IMAGE=python:3.11.5-slim-bookworm ./scan-and-report.sh
+# builds the app on a stale base image, to demo what KEV/EPSS triage does
+# with a real backlog of hundreds of CVEs (see README).
 
 set -uo pipefail
 
@@ -30,6 +39,8 @@ APP_CONTAINER="sample-app-scan-target"
 APP_PORT=5000
 SEMGREP_REPORT="$SCRIPT_DIR/semgrep-report.json"
 ZAP_REPORT="$SCRIPT_DIR/zap-report.xml"
+GRYPE_REPORT="$SCRIPT_DIR/grype-report.json"
+BASE_IMAGE="${BASE_IMAGE:-python:3.12-slim}"
 PRODUCT_NAME="Sample Flask App"
 RUN_TS="$(date -u +%Y%m%dT%H%M%SZ)"
 
@@ -48,11 +59,31 @@ python3 -c "import json; d=json.load(open('$SEMGREP_REPORT')); assert 'results' 
 SEMGREP_COUNT=$(python3 -c "import json; print(len(json.load(open('$SEMGREP_REPORT'))['results']))")
 echo "Checkpoint OK: semgrep-report.json valid JSON, $SEMGREP_COUNT result(s)"
 
-# --- 2. Boot the scan target -------------------------------------------------
-step "Building and starting sample-app container"
+# --- 2. Build the image + SCA: Grype -----------------------------------------
+step "Building sample-app image (base: $BASE_IMAGE)"
+docker build --build-arg "BASE_IMAGE=$BASE_IMAGE" -t "$APP_IMAGE" "$SCRIPT_DIR" >/dev/null \
+  || fail "docker build failed"
+echo "Checkpoint OK: built $APP_IMAGE"
+
+step "Running Grype (SCA) against the sample-app container image"
+rm -f "$GRYPE_REPORT"
+# Grype reads the image straight from the local Docker engine via its socket.
+# Its JSON output carries an `epss` and a `knownExploited` (CISA KEV) block per
+# match, which DefectDojo's "Anchore Grype" parser maps onto the finding.
+docker run --rm -v /var/run/docker.sock:/var/run/docker.sock anchore/grype:latest \
+  "$APP_IMAGE" -o json -q > "$GRYPE_REPORT" \
+  || fail "grype scan failed"
+python3 -c "import json; d=json.load(open('$GRYPE_REPORT')); assert 'matches' in d" \
+  || fail "grype-report.json is not valid / missing 'matches'"
+read -r GRYPE_COUNT GRYPE_KEV < <(python3 -c "
+import json; m=json.load(open('$GRYPE_REPORT'))['matches']
+print(len(m), sum(1 for x in m if x['vulnerability'].get('knownExploited')))")
+echo "Checkpoint OK: grype-report.json valid JSON, $GRYPE_COUNT match(es), $GRYPE_KEV in CISA KEV"
+
+# --- 3. Boot the scan target -------------------------------------------------
+step "Starting sample-app container"
 docker rm -f "$APP_CONTAINER" >/dev/null 2>&1 || true
 docker network inspect "$NETWORK" >/dev/null 2>&1 || docker network create "$NETWORK" >/dev/null
-docker build -t "$APP_IMAGE" "$SCRIPT_DIR" >/dev/null
 docker run -d --name "$APP_CONTAINER" --network "$NETWORK" -p "$APP_PORT:5000" "$APP_IMAGE" >/dev/null
 
 echo "Waiting for sample-app to respond on :$APP_PORT/health ..."
@@ -65,7 +96,7 @@ for i in $(seq 1 20); do
   [[ $i -eq 20 ]] && { docker logs "$APP_CONTAINER"; fail "sample-app never became healthy"; }
 done
 
-# --- 3. DAST: OWASP ZAP baseline ---------------------------------------------
+# --- 4. DAST: OWASP ZAP baseline ---------------------------------------------
 step "Running OWASP ZAP baseline scan (DAST) against sample-app"
 rm -f "$ZAP_REPORT"
 docker run --rm --network "$NETWORK" -v "$SCRIPT_DIR:/zap/wrk/:rw" \
@@ -82,7 +113,7 @@ echo "Checkpoint OK: zap-report.xml well-formed"
 step "Stopping sample-app container"
 docker rm -f "$APP_CONTAINER" >/dev/null
 
-# --- 4. Report into DefectDojo -----------------------------------------------
+# --- 5. Report into DefectDojo -----------------------------------------------
 step "Authenticating to DefectDojo at $DD_URL"
 TOKEN=$(curl -sf -X POST "$DD_URL/api/v2/api-token-auth/" \
   -H "Content-Type: application/json" \
@@ -112,7 +143,7 @@ step "Creating engagement for this run"
 ENGAGEMENT_NAME="Automated Scan - $RUN_TS"
 ENGAGEMENT_ID=$(curl -sf -X POST "$DD_URL/api/v2/engagements/" \
   -H "Authorization: Token $TOKEN" -H "Content-Type: application/json" \
-  -d "{\"name\":\"$ENGAGEMENT_NAME\",\"product\":$PRODUCT_ID,\"target_start\":\"$(date -u +%Y-%m-%d)\",\"target_end\":\"$(date -u +%Y-%m-%d)\",\"status\":\"In Progress\",\"engagement_type\":\"CI/CD\"}" \
+  -d "{\"name\":\"$ENGAGEMENT_NAME\",\"product\":$PRODUCT_ID,\"target_start\":\"$(date -u +%Y-%m-%d)\",\"target_end\":\"$(date -u +%Y-%m-%d)\",\"status\":\"In Progress\",\"engagement_type\":\"CI/CD\",\"description\":\"Semgrep + Grype + ZAP. Image base: $BASE_IMAGE\"}" \
   | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])") \
   || fail "could not create engagement"
 echo "Checkpoint OK: created engagement id=$ENGAGEMENT_ID ('$ENGAGEMENT_NAME')"
@@ -139,7 +170,25 @@ ZAP_IMPORT=$(curl -sf -X POST "$DD_URL/api/v2/import-scan/" \
 ZAP_IMPORTED=$(echo "$ZAP_IMPORT" | python3 -c "import json,sys; print(json.load(sys.stdin)['statistics']['after']['total']['total'])")
 echo "Checkpoint OK: ZAP import -> $ZAP_IMPORTED finding(s) in DefectDojo"
 
+step "Importing Grype (SCA) results"
+GRYPE_IMPORT=$(curl -sf -X POST "$DD_URL/api/v2/import-scan/" \
+  -H "Authorization: Token $TOKEN" \
+  -F "engagement=$ENGAGEMENT_ID" \
+  -F "scan_type=Anchore Grype" \
+  -F "file=@$GRYPE_REPORT" \
+  -F "active=true" -F "verified=true" -F "minimum_severity=Info") \
+  || fail "Grype import failed"
+GRYPE_IMPORTED=$(echo "$GRYPE_IMPORT" | python3 -c "import json,sys; print(json.load(sys.stdin)['statistics']['after']['total']['total'])")
+echo "Checkpoint OK: Grype import -> $GRYPE_IMPORTED finding(s) in DefectDojo"
+
+# --- 6. Triage: EPSS + CISA KEV enrichment ------------------------------------
+step "Enriching product findings with EPSS + CISA KEV and tagging triage tiers"
+python3 "$SCRIPT_DIR/enrich-epss-kev.py" --product-id "$PRODUCT_ID" \
+  || fail "EPSS/KEV enrichment failed"
+
 step "Done"
 echo "Engagement: $DD_URL/engagement/$ENGAGEMENT_ID"
 echo "Semgrep findings imported: $SEMGREP_IMPORTED"
+echo "Grype findings imported:   $GRYPE_IMPORTED"
 echo "ZAP findings imported:     $ZAP_IMPORTED"
+echo "Fix-now queue (CISA KEV):  $DD_URL/finding/open?tags=priority-p0"

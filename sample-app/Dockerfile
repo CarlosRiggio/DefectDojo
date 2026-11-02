@@ -1,4 +1,7 @@
-FROM python:3.12-slim
+# Overridable so the pipeline can demo a stale base image (see README:
+# "EPSS / KEV triage"). The default is the current, patched image.
+ARG BASE_IMAGE=python:3.12-slim
+FROM ${BASE_IMAGE}
 
 WORKDIR /app
 
